@@ -1,0 +1,59 @@
+#app.py
+import os
+import pickle
+import numpy as np
+import pandas as pd
+from flask import Flask, request, jsonify, render_template
+
+app = Flask(_name_)
+
+# Load model & scaler once at startup
+model_path = os.path.join('G:/AI&ML/ML projects/Traffic_volume', 'model.pkl')
+scale_path = os.path.join('C:/Users/SmarthbridgePC/Desktop/AI/Guided projects', 'scale.pkl')
+
+with open(model_path, 'rb') as f:
+    model = pickle.load(f)
+with open(scale_path, 'rb') as f:
+    scaler = pickle.load(f)
+
+# Ensure these names match your training data
+FEATURE_NAMES = [
+    'holiday', 'temp', 'rain', 'snow', 'weather',
+    'year', 'month', 'day',
+    'hours', 'minutes', 'seconds'
+]
+
+@app.route('/', methods=['GET'])
+def home():
+    return render_template('index.html')
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    try:
+        # catch form or JSON input
+        if request.is_json:
+            payload = request.get_json()
+            values = [float(payload.get(name, 0)) for name in FEATURE_NAMES]
+        else:
+            values = [float(request.form.get(name, 0)) for name in FEATURE_NAMES]
+            
+        df = pd.DataFrame([values], columns=FEATURE_NAMES)
+        df_scaled = scaler.transform(df)  # use transform, not fit_transform
+        y_pred = model.predict(df_scaled)
+        volume = float(y_pred[0])
+
+        # return JSON if AJAX / API call
+        if request.is_json:
+            return jsonify({'traffic_volume': volume})
+
+        # else render HTML
+        return render_template('index.html', prediction_text=f"Estimated Traffic Volume is: {volume:.0f}")
+    except Exception as e:
+        error_msg = f"Error during prediction: {str(e)}"
+        if request.is_json:
+            return jsonify({'error': error_msg}), 400
+        return render_template('index.html', prediction_text=error_msg)
+
+if _name_ == '_main_':
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=True)
